@@ -69,8 +69,7 @@ if __name__ == "__main__":
     #os.system("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {} &".format(audiofiles_path, icecast_mountpoint))
 
     subprocess.Popen("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {}".format(audiofiles_path, icecast_mountpoint), shell=True, start_new_session=True, stderr=subprocess.STDOUT)
-    time.sleep(4)
-    songupdater2.title_updater_start(songs, mountpoint)
+    songupdater2.title_updater_start(lines, songs, mountpoint)
 
     
 
