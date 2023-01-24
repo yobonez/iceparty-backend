@@ -1,14 +1,12 @@
 import os
 import sys
-# def convert(self, list_):
-#     it = iter(list_)
-#     keyval_dict = dict(zip(it, it))
-#     return keyval_dict
 
 default_config_contents = ["// Credentials to icecast admin interface (write like this: user:password)\n",
                            "icecast-admin = user:password\n",
                            "// Credentials to icecast source (write like this: user:password) (do not use dollar signs in passwords, wontfix escaping them)\n",
                            "icecast-source = source:password\n",
+                           "// Provide an address for your icecast server, where the audio will be streamed (without mountpoint name)\n",
+                           "icecast-address = \n",
                            "// Your root directory for radio mountpoints with songs in them (directory name ends with slash \"/\" too)\n",
                            "radio-root = \n",
                            "// Webiste root directory (directory name ends with slash \"/\" too)\n",

@@ -12,6 +12,7 @@ config = radio_config.get_config()
 
 radio_rootdir = config["radio-root"]
 icecast_source_creds = config["icecast-source"]
+icecast_address = config["icecast-address"]
 
 mountpoint = ""
 mountpoint_path = ""
@@ -66,7 +67,7 @@ if __name__ == "__main__":
     mountpoint_path = os.path.join(radio_rootdir, mountpoint)
     audiofiles_path = os.path.join(mountpoint_path, "audiofiles.txt")
 
-    icecast_mountpoint = "icecast://{}@192.168.1.2:2139/{}".format(icecast_source_creds, mountpoint)
+    icecast_mountpoint = "icecast://{}@{}/{}".format(icecast_source_creds, icecast_address, mountpoint)
 
     remove_prev_files(mountpoint_path)
     get_files_and_shuffle(mountpoint_path)
