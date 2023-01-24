@@ -6,7 +6,13 @@ import sys
 import subprocess
 import time
 
-radio_rootdir = "/home/bonzo/share/priv_files/radio/"
+import radio_config
+
+config = radio_config.get_config()
+
+radio_rootdir = config["radio-root"]
+icecast_source_creds = config["icecast-source"]
+
 mountpoint = ""
 mountpoint_path = ""
 icecast_mountpoint = ""
@@ -60,7 +66,7 @@ if __name__ == "__main__":
     mountpoint_path = os.path.join(radio_rootdir, mountpoint)
     audiofiles_path = os.path.join(mountpoint_path, "audiofiles.txt")
 
-    icecast_mountpoint = "icecast://source:\$icesource\$@192.168.1.2:2139/{}".format(mountpoint)
+    icecast_mountpoint = "icecast://{}@192.168.1.2:2139/{}".format(icecast_source_creds, mountpoint)
 
     remove_prev_files(mountpoint_path)
     get_files_and_shuffle(mountpoint_path)
@@ -68,8 +74,8 @@ if __name__ == "__main__":
 
     #os.system("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {} &".format(audiofiles_path, icecast_mountpoint))
 
-    subprocess.Popen("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {}".format(audiofiles_path, icecast_mountpoint), shell=True, start_new_session=True, stderr=subprocess.STDOUT)
-    songupdater2.title_updater_start(lines, songs, mountpoint)
+    proc = subprocess.Popen("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {}".format(audiofiles_path, icecast_mountpoint), shell=True, start_new_session=True) # stderr=subprocess.STDOUT)
+    songupdater2.title_updater_start(lines, songs, mountpoint, proc, config)
 
     
 
