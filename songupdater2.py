@@ -12,6 +12,7 @@ config = radio_config.get_config()
 
 web_rootdir = config["web-root"]
 icecast_admin_creds = config["icecast-admin"]
+icecast_address = config["icecast-address"]
 
 stream_start = float(time.time())
 
@@ -25,7 +26,7 @@ def update_stream_title(new_title, mountpoint):
 
 	response = 0
 	headers = {'authorization': 'Basic {}'.format(base64_auth)}
-	url = "http://192.168.1.2:2139/admin/metadata.xsl?song={}&mount=%2F{}&mode=updinfo&charset=UTF-8".format(new_title, mountpoint)
+	url = "http://{}/admin/metadata.xsl?song={}&mount=%2F{}&mode=updinfo&charset=UTF-8".format(icecast_address, new_title, mountpoint)
 	
 	while response != 200:
 		time.sleep(0.5)
@@ -67,6 +68,7 @@ def title_updater_start(files, songs, mountpoint, proc, config):
 
 		curr_song_start = float(songs[indexx - 1][0])
 		next_song_start = float(songs[indexx][0])
+		# ^ TODO: fix IndexError when trying to get last (or before last?) song 
 
 		donotsend = False
 

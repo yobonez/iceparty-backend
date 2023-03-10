@@ -3,7 +3,7 @@ import sys
 
 default_config_contents = ["// Credentials to icecast admin interface (write like this: user:password)\n",
                            "icecast-admin = user:password\n",
-                           "// Credentials to icecast source (write like this: user:password) (do not use dollar signs in passwords, wontfix escaping them)\n",
+                           "// Credentials to icecast source (do not use dollar signs in passwords, wontfix escaping them)\n",
                            "icecast-source = source:password\n",
                            "// Provide an address for your icecast server, where the audio will be streamed (without mountpoint name)\n",
                            "icecast-address = \n",
@@ -33,6 +33,6 @@ def get_config():
         config = open("./config.txt", "w+")
         config.writelines(default_config_contents)
         config.close()
-        sys.exit("Fill the \"config.txt\" that was created in this directory, and then run the program.")
+        sys.exit("Fill the \"config.txt\" that was created in this directory and then run again.")
        
     return entries
