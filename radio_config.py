@@ -7,9 +7,9 @@ default_config_contents = ["// Credentials to icecast admin interface (write lik
                            "icecast-source = source:password\n",
                            "// Provide an address for your icecast server, where the audio will be streamed (without mountpoint name)\n",
                            "icecast-address = \n",
-                           "// Your root directory for radio mountpoints with songs in them (directory name ends with slash \"/\" too)\n",
+                           "// Your root directory for radio mountpoints with songs in them (directory name must end with a slash)\n",
                            "radio-root = \n",
-                           "// Webiste root directory (directory name ends with slash \"/\" too)\n",
+                           "// Webiste root directory (directory name must end with a slash)\n",
                            "web-root = \n"]
 
 

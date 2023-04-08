@@ -1,4 +1,3 @@
-import songupdater2
 import mutagen
 import os
 import random
@@ -6,6 +5,7 @@ import sys
 import subprocess
 import time
 
+import song_updater
 import radio_config
 
 config = radio_config.get_config()
@@ -19,6 +19,7 @@ mountpoint_path = ""
 icecast_mountpoint = ""
 
 lines = []
+force_change_format = (".jpg", ".webp")
 
 def get_file_length(file):
     return file.info.length
@@ -29,6 +30,13 @@ def get_files_and_shuffle(rootdir):
                 if os.path.splitext(name)[1] == ".mp3":
                     filepath = os.path.join(root, name)
                     lines.append(filepath)
+                
+                # unifying formats, it may break something but whatever
+                if os.path.splitext(name)[1] in force_change_format:
+                    old_name = os.path.join(root, name)
+                    new_name = os.path.join(root, name.split(".")[0] + ".png")
+                    os.rename(old_name, new_name)
+
                 
     random.shuffle(lines)
 
@@ -76,7 +84,7 @@ if __name__ == "__main__":
     #os.system("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {} &".format(audiofiles_path, icecast_mountpoint))
 
     proc = subprocess.Popen("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {}".format(audiofiles_path, icecast_mountpoint), shell=True, start_new_session=True) # stderr=subprocess.STDOUT)
-    songupdater2.title_updater_start(lines, songs, mountpoint, proc, config)
+    song_updater.title_updater_start(lines, songs, mountpoint, proc, config)
 
     
 

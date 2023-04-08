@@ -44,7 +44,7 @@ def set_song_cover(file, mountpoint):
 			coverfile.write(cover)
 			coverfile.close()
 	else:
-		external_cover_file = file.split(".")[0] + ".jpg"
+		external_cover_file = file.split(".")[0] + ".png"
 		destination_image = "{}img/cover-{}.png".format(web_rootdir, mountpoint)
 		if os.path.exists(external_cover_file):
 			shutil.copy(external_cover_file, destination_image)
