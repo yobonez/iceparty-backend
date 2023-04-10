@@ -25,6 +25,11 @@ radio-root = /your/dir/with/songs/
 web-root = /your/dir/iceparty/
 ```
 
+If your web-root path is custom (for example its your home folder), you must link it inside
+/usr/share/icecast2/web/
+Example: 
+`sudo ln -s /home/someuser/iceparty /usr/share/icecast2/web/iceparty`
+
 ## How does it work?
 
 When program is running, it will reach for your songs folder named after ```mountpoint-name``` (specified in ```radio-root``` in config),
