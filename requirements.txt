@@ -1,2 +1,4 @@
 requests
 mutagen
+fastapi
+uvicorn

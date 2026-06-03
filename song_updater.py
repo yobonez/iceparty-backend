@@ -1,12 +1,14 @@
+import signal
 import time
 import requests
 import sys
 import shutil
 import os
-from mutagen.id3 import ID3
+from mutagen.id3 import ID3, ID3NoHeaderError
 import base64
 
 import radio_config
+from radio_main import finish
 
 config = radio_config.get_config()
 
@@ -36,60 +38,63 @@ def update_stream_title(new_title, mountpoint):
 	return r
 
 def set_song_cover(file, mountpoint):
-	id3_data = ID3(file)
+	destination_image = "{}img/cover-{}.png".format(web_rootdir, mountpoint)
 
-	if "APIC:Album cover" in id3_data:
-		cover = id3_data["APIC:Album cover"].data
-		with open("{}img/cover-{}.png".format(web_rootdir, mountpoint), "wb") as coverfile:
-			coverfile.write(cover)
-			coverfile.close()
-	else:
-		external_cover_file = file.split(".")[0] + ".png"
-		destination_image = "{}img/cover-{}.png".format(web_rootdir, mountpoint)
-		if os.path.exists(external_cover_file):
-			shutil.copy(external_cover_file, destination_image)
+	try:
+		id3_data = ID3(file)
+
+		if "APIC:Album cover" in id3_data:
+			cover = id3_data["APIC:Album cover"].data
+			with open("{}img/cover-{}.png".format(web_rootdir, mountpoint), "wb") as coverfile:
+				coverfile.write(cover)
+				coverfile.close()
 		else:
-			shutil.copy("no-cover.png", destination_image)
+			external_cover_file_options = [file.split(".")[0] + ".png", "cover.png", "Cover.png"]
 
-		
+			for possible_cover_file in external_cover_file_options:
 
-def title_updater_start(files, songs, mountpoint, proc, config):
-	indexx = 0
-	songs.sort(reverse=False, key=lambda x: int(x[0]))
+				if os.path.exists(possible_cover_file):
+					shutil.copy(possible_cover_file, destination_image)
+				else:
+					shutil.copy("no-cover.png", destination_image)
+	except ID3NoHeaderError:
+		shutil.copy("no-cover.png", destination_image)
 
-	current_song = None
+def title_updater_start(files, songs, mountpoint, proc):
+	try:
+		indexx = 0
+		songs.sort(reverse=False, key=lambda x: int(x[0]))
 
-	poll = None
+		current_song = None
 
-	for entry in songs:
-		indexx += 1 # ahead
+		for entry in songs:
+			indexx += 1 # ahead
 
-		current_time_seconds = get_stream_time()
+			next_song_start = float(songs[indexx][0])
+			# ^ TODO: fix IndexError when trying to get last (or before last?) song
 
-		curr_song_start = float(songs[indexx - 1][0])
-		next_song_start = float(songs[indexx][0])
-		# ^ TODO: fix IndexError when trying to get last (or before last?) song 
-
-		donotsend = False
-
-		poll = proc.poll()
-		if poll is not None:
-			sys.exit("FFmpeg process died")
-
-		while poll is None:
-			current_time_seconds = get_stream_time()
-			if entry[1] == current_song:
-				donotsend = True
-			if current_time_seconds <= next_song_start:
-				if not donotsend:
-					req = update_stream_title(entry[1], mountpoint)
-					set_song_cover(files[indexx - 1], mountpoint)
-				current_song = entry[1]
-			else:
-				break
+			donotsend = False
 
 			poll = proc.poll()
+
+			while poll is None:
+				current_time_seconds = get_stream_time()
+				if entry[1] == current_song:
+					donotsend = True
+				if current_time_seconds <= next_song_start:
+					if not donotsend:
+						update_stream_title(entry[1], mountpoint)
+						set_song_cover(files[indexx - 1], mountpoint)
+					current_song = entry[1]
+				else:
+					break
+
+				poll = proc.poll()
+				time.sleep(1)
+
 			if poll is not None:
 				sys.exit("FFmpeg process died")
-			time.sleep(1)
+
+	except KeyboardInterrupt:
+		finish(proc)
 
