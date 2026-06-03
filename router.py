@@ -1,6 +1,6 @@
 import os
 
-from fastapi import FastAPI, Response, APIRouter
+from fastapi import APIRouter
 from starlette.responses import FileResponse
 
 from radio_config import get_config

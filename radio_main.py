@@ -84,13 +84,10 @@ if __name__ == "__main__":
     get_files_and_shuffle(mountpoint_path)
     songs = prepare_files(web_root)
 
-    #os.system("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {} &".format(audiofiles_path, icecast_mountpoint))
-
     proc = subprocess.Popen("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {}".format(audiofiles_path, icecast_mountpoint),
                             shell=True,
-#                            start_new_session=True,
                             stdout=subprocess.PIPE,
-                            preexec_fn=os.setsid) # stderr=subprocess.STDOUT)
+                            preexec_fn=os.setsid)
 
     app = FastAPI()
     app.include_router(router=song_router)

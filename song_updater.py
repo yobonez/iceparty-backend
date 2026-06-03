@@ -1,4 +1,3 @@
-import signal
 import time
 import requests
 import sys
