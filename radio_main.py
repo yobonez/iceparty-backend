@@ -1,4 +1,5 @@
-import signal
+import asyncio
+from contextlib import asynccontextmanager
 
 import mutagen
 import os
@@ -13,6 +14,12 @@ import song_updater
 import radio_config
 from router import song_router
 
+import logging
+
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename='radio.log', level=logging.NOTSET)
+
 config = radio_config.get_config()
 
 radio_rootdir = config["radio-root"]
@@ -20,15 +27,17 @@ icecast_source_creds = config["icecast-source"]
 icecast_address = config["icecast-address"]
 web_root = config["web-root"]
 
-mountpoint = ""
-mountpoint_path = ""
-icecast_mountpoint = ""
-
 lines = []
 
-def finish(proc):
-    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-    sys.exit("User issued KeyboardInterrupt")
+mountpoint = sys.argv[1]
+mountpoint_path = os.path.join(radio_rootdir, mountpoint)
+audiofiles_path = os.path.join(web_root, "audiofiles.txt")
+icecast_mountpoint = "icecast://{}@{}/{}".format(icecast_source_creds, icecast_address, mountpoint)
+
+def error_handler(exc_type, exc_value, exc_tb):
+    # traceback.format_exception(exc_type, exc_value, exc_tb)
+    logger.error("Uncaught exception:", exc_info=(exc_type, exc_value, exc_tb))
+sys.excepthook = error_handler
 
 def get_file_length(file):
     return file.info.length
@@ -68,32 +77,49 @@ def remove_prev_files(rootdir):
     if os.path.exists(audiofiles):
         os.remove(audiofiles)
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("No endpoint specified")
-        exit(1)
 
-    
-    mountpoint = sys.argv[1]
-    mountpoint_path = os.path.join(radio_rootdir, mountpoint)
-    audiofiles_path = os.path.join(web_root, "audiofiles.txt")
-
-    icecast_mountpoint = "icecast://{}@{}/{}".format(icecast_source_creds, icecast_address, mountpoint)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Preparing songs...")
 
     remove_prev_files(web_root)
     get_files_and_shuffle(mountpoint_path)
     songs = prepare_files(web_root)
 
-    proc = subprocess.Popen("ffmpeg -re -f concat -safe 0 -i {} -c:a libmp3lame -ar 44100 -ac 2 -vn -f mp3 -map_metadata 0 -content_type 'audio/mpeg' {}".format(audiofiles_path, icecast_mountpoint),
-                            shell=True,
-                            stdout=subprocess.PIPE,
-                            preexec_fn=os.setsid)
+    cmd = [
+        "ffmpeg", "-re", "-f", "concat", "-safe", "0", "-i", audiofiles_path,
+        "-c:a", "libmp3lame", "-ar", "44100", "-ac", "2", "-vn", "-f", "mp3",
+        "-map_metadata", "0", "-content_type", "audio/mpeg", icecast_mountpoint
+    ]
 
-    app = FastAPI()
-    app.include_router(router=song_router)
+    logger.info("Starting ffmpeg...")
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
-    uvicorn.run(app, host=icecast_address.split(":")[0], port=2138)
+    logger.info("Starting song updater...")
+    updater_task = asyncio.create_task(
+        asyncio.to_thread(song_updater.title_updater_start, lines, songs, mountpoint, proc)
+    )
 
-    song_updater.title_updater_start(lines, songs, mountpoint, proc)
+    yield
+
+    logger.info("Shutting down everything...")
+
+    updater_task.cancel()
+
+    if proc.poll() is None:
+        logger.info("Cleaning up ffmpeg subprocess...")
+        proc.terminate()
+        proc.wait()
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(router=song_router)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        logger.info("No endpoint specified")
+        exit(1)
+
+    host_ip = icecast_address.split(":")[0]
+    uvicorn.run(app, host=host_ip, port=2138)
 
 

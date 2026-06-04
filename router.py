@@ -11,7 +11,7 @@ config = get_config()
 song_router.web_root = config["web-root"]
 
 @song_router.get(
-    "/songupdater/{mountpoint}/cover",
+    "/radio/{mountpoint}/cover",
     summary="Get song cover image.",
     responses= {
         200: {
