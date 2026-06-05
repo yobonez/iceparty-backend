@@ -16,10 +16,14 @@ from router import song_router
 
 import logging
 
+import argparse
+
 from models.mountpoint import Mountpoint
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='radio.log', level=logging.NOTSET)
+
+debug_mode = False
 
 config = radio_config.get_config()
 
@@ -76,6 +80,9 @@ def prepare_files(cache_directory, lines: list[str]):
     af = open(os.path.join(cache_directory, "audiofiles.txt"), "a+")
 
     for filepath in lines:
+        filepath.replace("'", "\\'")
+        filepath.replace("\\", "\\\\")
+
         filename = os.path.basename(filepath)
         songname = os.path.splitext(filename)[0]
         duration = get_file_length(mutagen.File(filepath))
@@ -141,7 +148,11 @@ async def lifespan(app: FastAPI):
         ]
 
         logger.info(f"[{mountpoint.title}] Starting ffmpeg...")
-        mountpoint.ffmpeg_log = open(f"ffmpeg-{mountpoint.title}.log", "a+", encoding="utf-8")
+        if debug_mode:
+            mountpoint.ffmpeg_log = open(f"ffmpeg-{mountpoint.title}.log", "a+", encoding="utf-8")
+            logger.info(f"[{mountpoint.title}] Saving live ffmpeg stream log to {mountpoint.ffmpeg_log.name}")
+        else:
+            mountpoint.ffmpeg_log = open(os.devnull, "w")
 
         mountpoint.process = subprocess.Popen(cmd, stdout=mountpoint.ffmpeg_log, stderr=mountpoint.ffmpeg_log)
 
@@ -157,19 +168,27 @@ async def lifespan(app: FastAPI):
                 pass
             except Exception as e:
                 logger.error("Server crashed:", exc_info=e)
-                graceful_shutdown(mountpoint.process, mountpoint.updater_task, mountpoint.title)
+                graceful_shutdown(mountpoint.process, mountpoint.updater_task, mountpoint.title, mountpoint.ffmpeg_log)
 
         mountpoint.updater_task.add_done_callback(handle_task_result)
 
     yield
 
     for mountpoint in mountpoints:
-        graceful_shutdown(mountpoint.process, mountpoint.updater_task, mountpoint.title)
+        graceful_shutdown(mountpoint.process, mountpoint.updater_task, mountpoint.title, mountpoint.ffmpeg_log)
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(router=song_router)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="iceparty-backend that scans endpoints and runs music endpoints simultaneously")
+    parser.add_argument("--debug",
+                        action="store_true",
+                        help="Keep track of live ffmpeg stream logs")
+    args = parser.parse_args()
+
+    debug_mode = args.debug
+
     host_ip = icecast_address.split(":")[0]
     uvicorn.run(app, host=host_ip, port=2138)
 
