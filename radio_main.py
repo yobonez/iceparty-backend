@@ -32,6 +32,8 @@ icecast_source_creds = config["icecast-source"]
 icecast_address = config["icecast-address"]
 cache_dir = config["cache-dir"]
 
+requested_mountpoints: list[str] = []
+
 def error_handler(exc_type, exc_value, exc_tb):
     # traceback.format_exception(exc_type, exc_value, exc_tb)
     logger.error("Uncaught exception:", exc_info=(exc_type, exc_value, exc_tb))
@@ -39,10 +41,18 @@ sys.excepthook = error_handler
 
 
 def get_available_endpoints() -> list[Mountpoint]:
-    mountpoint_list: list = os.listdir(radio_rootdir)
+    mountpoint_list: list = []
+
+    if len(requested_mountpoints) == 0:
+        mountpoint_list = os.listdir(radio_rootdir)
+    else:
+        mountpoint_list = requested_mountpoints
 
     mountpoints: list[Mountpoint] = []
     for mountpoint_name in mountpoint_list:
+        if not os.path.exists(os.path.join(radio_rootdir, mountpoint_name)):
+            sys.exit(f"No such endpoint \"{mountpoint_name}\".")
+
         to_add: Mountpoint = Mountpoint()
 
         to_add.title = mountpoint_name
@@ -185,9 +195,14 @@ if __name__ == "__main__":
     parser.add_argument("--debug",
                         action="store_true",
                         help="Keep track of live ffmpeg stream logs")
+    parser.add_argument("--mountpoints",
+                        help="""Pass a comma-separated list of mountpoints you want to use (default all of detected mountpoints)
+                                Usage: --mountpoints Mountpoint1,Mountpoint2,... """,)
     args = parser.parse_args()
 
     debug_mode = args.debug
+    if args.mountpoints:
+        requested_mountpoints = list(args.mountpoints.split(","))
 
     host_ip = icecast_address.split(":")[0]
     uvicorn.run(app, host=host_ip, port=2138)
