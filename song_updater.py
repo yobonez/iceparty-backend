@@ -15,7 +15,7 @@ config = radio_config.get_config()
 
 logger = logging.getLogger(__name__)
 
-web_rootdir = config["web-root"]
+cache_dir = config["cache-dir"]
 icecast_admin_creds = config["icecast-admin"]
 icecast_address = config["icecast-address"]
 
@@ -52,7 +52,7 @@ def update_stream_title(new_title, mountpoint):
 
 def search_and_apply_external_cover(file, mountpoint):
 	found = False
-	destination_image = "{}img/cover-{}.png".format(web_rootdir, mountpoint)
+	destination_image = "{}img/cover-{}.png".format(cache_dir, mountpoint)
 
 	possible_cover_names = [file.split(".")[0] + ".png"] # songside cover
 
@@ -84,7 +84,7 @@ def search_and_apply_external_cover(file, mountpoint):
 
 
 def set_song_cover(file, mountpoint):
-	destination_image = "{}img/cover-{}.png".format(web_rootdir, mountpoint)
+	destination_image = "{}img/cover-{}.png".format(cache_dir, mountpoint)
 
 	try:
 		id3_data = ID3(file)
@@ -104,7 +104,7 @@ def set_song_cover(file, mountpoint):
 		logger.info("[ID3-Exception] Couldn't find the image cover.")
 		search_and_apply_external_cover(file, mountpoint)
 
-def title_updater_start(files, songs, mountpoint, proc):
+def title_updater_start(files, songs, mountpoint_name, proc):
 
 	indexx = 0
 	songs.sort(reverse=False, key=lambda x: int(x[0]))
@@ -113,7 +113,7 @@ def title_updater_start(files, songs, mountpoint, proc):
 
 	for entry in songs:
 		indexx += 1 # ahead
-
+	
 		next_song_start = float(songs[indexx][0])
 		# ^ TODO: fix IndexError when trying to get last (or before last?) song
 
@@ -127,8 +127,8 @@ def title_updater_start(files, songs, mountpoint, proc):
 				donotsend = True
 			if current_time_seconds <= next_song_start:
 				if not donotsend:
-					update_stream_title(entry[1], mountpoint)
-					set_song_cover(files[indexx - 1], mountpoint)
+					update_stream_title(entry[1], mountpoint_name)
+					set_song_cover(files[indexx - 1], mountpoint_name)
 
 					current_song = entry[1] #idented test
 					logger.info("Current song {}".format(current_song))
