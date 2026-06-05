@@ -94,15 +94,19 @@ def remove_prev_files(cache_directory):
     if os.path.exists(audiofiles):
         os.remove(audiofiles)
 
-def graceful_shutdown(proc, task, mountpoint_name:str):
+def graceful_shutdown(proc, task, mountpoint_name, ffmpeg_log):
     logger.info("Shutting down everything...")
 
     task.cancel()
 
     if proc.poll() is None:
-        logger.info("Cleaning up ffmpeg subprocess...")
+        logger.info(f"[{mountpoint_name}] Cleaning up ffmpeg subprocess...")
         proc.terminate()
         proc.wait()
+
+    if ffmpeg_log and not ffmpeg_log.closed:
+        logger.info(f"[{mountpoint_name}] Closing ffmpeg log handle...")
+        ffmpeg_log.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -136,12 +140,12 @@ async def lifespan(app: FastAPI):
             mountpoint.stream_url
         ]
 
-        logger.info("Starting ffmpeg...")
-        logger.info(cmd)
-        logger.info(songs)
-        mountpoint.process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        logger.info(f"[{mountpoint.title}] Starting ffmpeg...")
+        mountpoint.ffmpeg_log = open(f"ffmpeg-{mountpoint.title}.log", "a+", encoding="utf-8")
 
-        logger.info("Starting song updater...")
+        mountpoint.process = subprocess.Popen(cmd, stdout=mountpoint.ffmpeg_log, stderr=mountpoint.ffmpeg_log)
+
+        logger.info(f"[{mountpoint.title}] Starting song updater...")
         mountpoint.updater_task = asyncio.create_task(
             asyncio.to_thread(song_updater.title_updater_start, lines, songs, mountpoint.title, mountpoint.process)
         )

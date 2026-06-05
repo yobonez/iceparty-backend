@@ -1,4 +1,5 @@
 from asyncio import Task
+from io import TextIOWrapper
 from subprocess import Popen
 
 from typing_extensions import Any
@@ -11,3 +12,4 @@ class Mountpoint:
     stream_url: str
     stream_process: Popen[bytes]
     updater_process: Task[Any]
+    ffmpeg_log: TextIOWrapper

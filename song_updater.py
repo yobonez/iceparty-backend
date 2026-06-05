@@ -1,10 +1,11 @@
 import glob
 import time
+
+import mutagen
 import requests
 import sys
 import shutil
 import os
-from mutagen.id3 import ID3, ID3NoHeaderError
 import base64
 
 import radio_config
@@ -24,7 +25,7 @@ stream_start = float(time.time())
 def get_stream_time():
 	return float(time.time()) - stream_start
 
-def update_stream_title(new_title, mountpoint):
+def update_stream_title(new_title, mountpoint_name):
 	creds_bytes = icecast_admin_creds.encode('ascii')
 	base64_auth_enc = base64.b64encode(creds_bytes)
 	base64_auth = base64_auth_enc.decode('ascii')
@@ -33,11 +34,11 @@ def update_stream_title(new_title, mountpoint):
 
 	status_code = 0
 	headers = {'authorization': 'Basic {}'.format(base64_auth)}
-	url = "http://{}/admin/metadata.xsl?song={}&mount=%2F{}&mode=updinfo&charset=UTF-8".format(icecast_address, new_title, mountpoint)
+	url = "http://{}/admin/metadata.xsl?song={}&mount=%2F{}&mode=updinfo&charset=UTF-8".format(icecast_address, new_title, mountpoint_name)
 
 	while status_code != 200:
 		if retry_val > 0:
-			logger.info("Couldn't update the song info.")
+			logger.info(f"[{mountpoint_name}] Couldn't update the song info.")
 		if 0 < retry_val <= 5:
 			logger.info("Retries: {}/5".format(retry_val))
 			retry_val = retry_val + 1
@@ -47,12 +48,12 @@ def update_stream_title(new_title, mountpoint):
 		status_code = r.status_code
 
 		if status_code == 200:
-			logger.info("Successfully updated stream title.")
+			logger.info(f"[{mountpoint_name}] Successfully updated stream title.")
 			break
 
-def search_and_apply_external_cover(file, mountpoint):
+def search_and_apply_external_cover(file, mountpoint_name):
 	found = False
-	destination_image = "{}img/cover-{}.png".format(cache_dir, mountpoint)
+	destination_image = str(os.path.join(cache_dir, mountpoint_name, "cover.png"))
 
 	possible_cover_names = [file.split(".")[0] + ".png"] # songside cover
 
@@ -73,36 +74,52 @@ def search_and_apply_external_cover(file, mountpoint):
 	for file_name in possible_cover_names:
 		logger.info("Trying {}".format(file_name))
 		if os.path.exists(file_name):
-			logger.info("[external] Found external image cover for the song.")
+			logger.info(f"[external ({mountpoint_name})] Found external image cover for the song.")
 			shutil.copy(file_name, destination_image)
 			found = True
 			break
 
 	if not found:
 		shutil.copy("no-cover.png", destination_image)
-		logger.info("[external] Couldn't find the image cover")
+		logger.info(f"[external({mountpoint_name})] Couldn't find the image cover")
 
 
-def set_song_cover(file, mountpoint):
-	destination_image = "{}img/cover-{}.png".format(cache_dir, mountpoint)
+def set_song_cover(file, mountpoint_name):
+	destination_image = str(os.path.join(cache_dir, mountpoint_name, "cover.png"))
 
 	try:
-		id3_data = ID3(file)
+		audio = mutagen.File(file)
 
-		if "APIC:Album cover" in id3_data:
-			logger.info("Found ID3 image cover for the song.")
-			cover = id3_data["APIC:Album cover"].data
+		if audio is None:
+			logger.error(f"Unsupported or corrupted audio file: {file}")
+
+		cover_data = None
+
+		if hasattr(audio, 'pictures') and audio.pictures:
+			logger.info(f"[flac Pictures ({mountpoint_name})] Found FLAC Picture block.")
+			cover_data = audio.pictures[0].data
+
+		elif hasattr(audio, 'tags') and audio.tags:
+			for key in audio.tags.keys():
+				if key.startswith("APIC:"):
+					logger.info(f"[mp3 APIC ({mountpoint_name})] Found image cover under key: {key}")
+					cover_data = audio.tags[key].data
+					break
+
+		if cover_data:
 			with open(destination_image, "wb") as coverfile:
-				coverfile.write(cover)
+				coverfile.write(cover_data)
 				coverfile.close()
+			logger.info(f"[{mountpoint_name}] Successfully changed cover art to {destination_image}")
+
 		else:
-			logger.info("[ID3] Couldn't find the image cover.")
-			search_and_apply_external_cover(file, mountpoint)
+			logger.info(f"[flac Pictures / mp3 APIC ({mountpoint_name})] Couldn't find the image cover.")
+			search_and_apply_external_cover(file, mountpoint_name)
 
 
-	except ID3NoHeaderError:
-		logger.info("[ID3-Exception] Couldn't find the image cover.")
-		search_and_apply_external_cover(file, mountpoint)
+	except:
+		logger.info(f"[flac Pictures / mp3 APIC ({mountpoint_name})] Couldn't find the image cover.")
+		search_and_apply_external_cover(file, mountpoint_name)
 
 def title_updater_start(files, songs, mountpoint_name, proc):
 
