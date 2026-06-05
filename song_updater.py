@@ -12,6 +12,8 @@ import radio_config
 
 import logging
 
+from models.song_metadata import SongMetadata
+
 config = radio_config.get_config()
 
 logger = logging.getLogger(__name__)
@@ -92,6 +94,7 @@ def set_song_cover(file, mountpoint_name):
 
 		if audio is None:
 			logger.error(f"Unsupported or corrupted audio file: {file}")
+			return
 
 		cover_data = None
 
@@ -121,6 +124,38 @@ def set_song_cover(file, mountpoint_name):
 		logger.info(f"[flac Pictures / mp3 APIC ({mountpoint_name})] Couldn't find the image cover.")
 		search_and_apply_external_cover(file, mountpoint_name)
 
+def get_song_file_metadata(file, fallback_title) -> SongMetadata:
+	metadata: SongMetadata = SongMetadata()
+	metadata.title = fallback_title
+	metadata.album = "Unknown album"
+	metadata.artist = "Unknown artist"
+
+	try:
+		audio = mutagen.File(file)
+
+		if audio is None:
+			logger.error(f"Unsupported or corrupted audio file: {file}")
+			return metadata
+
+		# FLAC
+		if hasattr(audio, 'pictures'):
+			if 'title' in audio: metadata.title= audio['title'][0]
+			if 'artist' in audio: metadata.artist = audio['artist'][0]
+			if 'album' in audio: metadata.album = audio['album'][0]
+		# MP3
+		else:
+			tags = audio.tags
+			if 'TIT2' in tags: metadata.title = str(tags['TIT2'])
+			if 'TPE1' in tags: metadata.artist = str(tags['TPE1'])
+			if 'TALB' in tags: metadata.album = str(tags['TALB'])
+
+		return metadata
+
+	except Exception as e:
+		logger.error(f"Error reading metadata from {file}", exc_info=e)
+		return metadata
+
+
 def title_updater_start(files, songs, mountpoint_name, proc):
 
 	indexx = 0
@@ -144,7 +179,17 @@ def title_updater_start(files, songs, mountpoint_name, proc):
 				donotsend = True
 			if current_time_seconds <= next_song_start:
 				if not donotsend:
-					update_stream_title(entry[1], mountpoint_name)
+					new_title = None
+
+					song_metadata: SongMetadata = get_song_file_metadata(file=files[indexx - 1], fallback_title=entry[1])
+					if song_metadata.title == entry[1]:
+						new_title = song_metadata.title # fallback title
+						logger.info(f"No song metadata found. Using fallback title: {new_title}")
+					else:
+						new_title = "{} - {}".format(song_metadata.artist, song_metadata.title)
+						logger.info(f"Setting song metadata: {new_title}")
+
+					update_stream_title(new_title, mountpoint_name)
 					set_song_cover(files[indexx - 1], mountpoint_name)
 
 					current_song = entry[1] #idented test
