@@ -1,3 +1,4 @@
+import glob
 import time
 import requests
 import sys
@@ -49,6 +50,38 @@ def update_stream_title(new_title, mountpoint):
 			logger.info("Successfully updated stream title.")
 			break
 
+def search_and_apply_external_cover(file, mountpoint):
+	found = False
+	destination_image = "{}img/cover-{}.png".format(web_rootdir, mountpoint)
+
+	possible_cover_names = [file.split(".")[0] + ".png"] # songside cover
+
+	for extension in ["*.png", "*.jpg", "*.jpeg"]:
+		full_path = file.split("/")
+		full_path.remove(full_path[-1])
+
+		album_path = os.path.join(*full_path)
+		album_path = "/" + str(album_path)
+
+		file_names = glob.glob(pathname=extension, root_dir=album_path)
+
+		if len(file_names) == 0:
+			continue
+
+		possible_cover_names.append(str(os.path.join(album_path, file_names[0])))
+
+	for file_name in possible_cover_names:
+		logger.info("Trying {}".format(file_name))
+		if os.path.exists(file_name):
+			logger.info("[external] Found external image cover for the song.")
+			shutil.copy(file_name, destination_image)
+			found = True
+			break
+
+	if not found:
+		shutil.copy("no-cover.png", destination_image)
+		logger.info("[external] Couldn't find the image cover")
+
 
 def set_song_cover(file, mountpoint):
 	destination_image = "{}img/cover-{}.png".format(web_rootdir, mountpoint)
@@ -64,19 +97,12 @@ def set_song_cover(file, mountpoint):
 				coverfile.close()
 		else:
 			logger.info("[ID3] Couldn't find the image cover.")
-			external_cover_file_options = [file.split(".")[0] + ".png", "cover.png", "Cover.png"]
+			search_and_apply_external_cover(file, mountpoint)
 
-			for possible_cover_file in external_cover_file_options:
-				if os.path.exists(possible_cover_file):
-					logger.info("[external] Found external image cover for the song.")
-					shutil.copy(possible_cover_file, destination_image)
-				else:
-					shutil.copy("no-cover.png", destination_image)
-					logger.info("[external] Couldn't find the image cover")
 
 	except ID3NoHeaderError:
-		shutil.copy("no-cover.png", destination_image)
-		logger.info("[ID3] Couldn't find the image cover.")
+		logger.info("[ID3-Exception] Couldn't find the image cover.")
+		search_and_apply_external_cover(file, mountpoint)
 
 def title_updater_start(files, songs, mountpoint, proc):
 
@@ -103,13 +129,14 @@ def title_updater_start(files, songs, mountpoint, proc):
 				if not donotsend:
 					update_stream_title(entry[1], mountpoint)
 					set_song_cover(files[indexx - 1], mountpoint)
-				current_song = entry[1]
+
+					current_song = entry[1] #idented test
+					logger.info("Current song {}".format(current_song))
 			else:
 				break
 
 			poll = proc.poll()
 			time.sleep(1)
-			logger.info("Current song {}".format(current_song))
 
 		if poll is not None:
 			sys.exit("FFmpeg process died")

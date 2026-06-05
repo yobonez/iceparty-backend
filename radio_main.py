@@ -77,6 +77,15 @@ def remove_prev_files(rootdir):
     if os.path.exists(audiofiles):
         os.remove(audiofiles)
 
+def graceful_shutdown(proc, task):
+    logger.info("Shutting down everything...")
+
+    task.cancel()
+
+    if proc.poll() is None:
+        logger.info("Cleaning up ffmpeg subprocess...")
+        proc.terminate()
+        proc.wait()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -100,16 +109,20 @@ async def lifespan(app: FastAPI):
         asyncio.to_thread(song_updater.title_updater_start, lines, songs, mountpoint, proc)
     )
 
+    def handle_task_result(task):
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error("Song updater task crashed!", exc_info=e)
+            graceful_shutdown(proc, updater_task)
+
+    updater_task.add_done_callback(handle_task_result)
+
     yield
 
-    logger.info("Shutting down everything...")
-
-    updater_task.cancel()
-
-    if proc.poll() is None:
-        logger.info("Cleaning up ffmpeg subprocess...")
-        proc.terminate()
-        proc.wait()
+    graceful_shutdown(proc, updater_task)
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(router=song_router)
